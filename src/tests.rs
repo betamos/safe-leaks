@@ -14,11 +14,35 @@ fn mem_forget() -> Result {
     expect_leak(|leak_me| std::mem::forget(leak_me))
 }
 
+/// Promise to manually drop, but then don't. Equivalent to mem::forget.
+#[test]
+fn manually_drop() -> Result {
+    expect_leak(|leak_me| {
+        let _ = std::mem::ManuallyDrop::new(leak_me);
+    })
+}
+
 /// The Box::leak technique, another straight-forward way to leak
 #[test]
 fn box_leak() -> Result {
     expect_leak(|leak_me| {
         let _ = Box::leak(Box::new(leak_me));
+    })
+}
+
+/// The Box::into_raw technique, another straight-forward way to leak
+#[test]
+fn box_into_raw_pointer() -> Result {
+    expect_leak(|leak_me| {
+        let _ = Box::into_raw(Box::new(leak_me));
+    })
+}
+
+/// MaybeUninit won't drop possibly uninitialized data.
+#[test]
+fn maybe_uninit() -> Result {
+    expect_leak(|leak_me| {
+        let _ = std::mem::MaybeUninit::new(leak_me);
     })
 }
 
@@ -62,14 +86,13 @@ fn panic_drop_in_array() -> Result {
     })
 }
 
-
 /// Attempt to leak by panicking in drop in a Vec. This is currently not
 /// possible, due to mitigations by Vec (using slices).
 #[test]
 fn panic_drop_in_vec() -> Result {
     expect_no_leak(|leak_me| {
         assert!(std::panic::catch_unwind(|| {
-            let _: Vec::<Box<dyn Drop>> = vec![Box::new(PanicDropper), Box::new(leak_me)];
+            let _: Vec<Box<dyn Drop>> = vec![Box::new(PanicDropper), Box::new(leak_me)];
         })
         .is_err());
     })
